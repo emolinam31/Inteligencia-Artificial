@@ -1,541 +1,529 @@
-#Punto 2 Entrega 1 IA 2025-2 Miguel Villegas y Esteban Molina
-
-# ===========================
-#  GA: Horario Semanal (bloques de 2 h)
-#  Autor: tú
-#  Objetivo: 56 bloques (7 días × 8 bloques), actividades:
-#    - 25 CLASE (fijas)
-#    - 5 GYM (1 bloque c/u)
-#    - 7 ESTUDIO (1 bloque c/u)
-#    - OCIO limitado a disponibilidad
-#    - ≥ 1 LIBRE por día
-#  Restricciones duras: clases fijas, conteos requeridos, al menos 1 LIBRE/día
-#  Restricciones blandas: evitar GYM en días consecutivos, compactar jornadas, estudio contiguo
-# ===========================
+# Entrega 1 IA - Algoritmo Genético para Horarios
+# Miguel Villegas y Esteban Molina
 
 import random
 from collections import Counter
-from typing import List, Tuple, Optional
 
-# ---------- Configuración general ----------
-DIAS   = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
-INICIO = 6     # 06:00
-FIN    = 22    # 22:00 (exclusivo)
-BLOQUE = 2     # horas por bloque
+# Configuración del horario
+dias = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
+horas_inicio = [6, 8, 10, 12, 14, 16, 18, 20]  # bloques de 2 horas
+duracion_bloque = 2
 
-SLOTS = list(range(INICIO, FIN, BLOQUE))    # [6,8,10,12,14,16,18,20]
-N_DIAS, N_SLOTS = len(DIAS), len(SLOTS)
-N_GENES = N_DIAS * N_SLOTS                   # 56
+# Cantidad de bloques totales
+n_dias = len(dias)
+n_bloques = len(horas_inicio)
+total_bloques = n_dias * n_bloques  # 56 bloques
 
-# Objetivos/controles de conteo
-N_CLASES  = 25
-N_GYM     = 5
-N_ESTUDIO = 7
-MIN_LIBRE_POR_DIA = 1
+# Objetivos de actividades
+objetivo_clases = 25
+objetivo_gym = 5
+objetivo_estudio = 7
+min_libre_por_dia = 1
 
-# Actividades
+# Tipos de actividades
 CLASE = "CLASE"
 GYM = "GYM"
 ESTUDIO = "ESTUDIO"
 OCIO = "OCIO"
 LIBRE = "LIBRE"
-ACT_MUTABLES = [GYM, ESTUDIO, OCIO, LIBRE]  # CLASE no se crea por mutación
 
-# Fija tu listado real aquí: [(día, hora_inicio), ...], p.ej. [("Lun", 8), ("Lun", 10), ...]
-CLASES_FIJAS_USUARIO: Optional[List[Tuple[str, int]]] = None  # <-- pon tu lista o deja None para ejemplo
+# Actividades que pueden cambiar (no las clases fijas)
+actividades_mutables = [GYM, ESTUDIO, OCIO, LIBRE]
 
-# Semilla para reproducibilidad
-RANDOM_SEED = 42
+clases_fijas_usuario = None  # se puede cambiar esto por tu lista real
 
-# ---------- Utilidades de índice ----------
-dia_a_idx  = {d:i for i,d in enumerate(DIAS)}
-hora_a_slot= {h:i for i,h in enumerate(SLOTS)}
-def pos(d, s): return d * N_SLOTS + s
+# Para reproducibilidad
+random.seed(42)
 
-# ---------- Generador de clases fijas (ejemplo) ----------
-def generar_clases_fijas_ejemplo(n=25, seed=RANDOM_SEED):
-    """
-    Distribuye 25 clases en la semana, sin choques, intentando no saturar ningún día.
-    Se puede reemplazar por la lista real del usuario.
-    """
-    random.seed(seed)
-    # Distribución diaria aproximada que suma 25 (4,4,4,4,3,3,3)
-    dist = [4,4,4,4,3,3,3]
-    assert sum(dist) == n
-    libres_por_dia = {d:set(range(N_SLOTS)) for d in range(N_DIAS)}
-    ejemplo = []
-    for d, cupo in enumerate(dist):
-        candidatos = list(libres_por_dia[d])
-        random.shuffle(candidatos)
-        elegidos = candidatos[:cupo]
-        for s in elegidos:
-            ejemplo.append((DIAS[d], SLOTS[s]))
-            libres_por_dia[d].remove(s)
-    return ejemplo
+# Mapeos útiles
+dia_a_indice = {dia: i for i, dia in enumerate(dias)}
+hora_a_indice = {hora: i for i, hora in enumerate(horas_inicio)}
 
-def clases_fijas_indices():
-    """
-    Retorna un diccionario {idx_gen: "CLASE"} con las clases fijas.
-    Si el usuario no define su lista, se genera un ejemplo.
-    """
-    if CLASES_FIJAS_USUARIO is None:
-        fijo = generar_clases_fijas_ejemplo(N_CLASES)
+def posicion(dia_idx, bloque_idx):
+    "Convierte (día, bloque) a posición en el genoma"
+    return dia_idx * n_bloques + bloque_idx
+
+def generar_clases_ejemplo(n=25):
+    "Genera 25 clases distribuidas en la semana (ejemplo)"
+    random.seed(42)
+    # Distribución por día: 4,4,4,4,3,3,3 = 25 total
+    distribucion = [4, 4, 4, 4, 3, 3, 3]
+    clases = []
+    
+    for dia_idx, cantidad in enumerate(distribucion):
+        # Elegir bloques aleatorios para este día
+        bloques_disponibles = list(range(n_bloques))
+        random.shuffle(bloques_disponibles)
+        
+        for i in range(cantidad):
+            bloque = bloques_disponibles[i]
+            clases.append((dias[dia_idx], horas_inicio[bloque]))
+    
+    return clases
+
+def obtener_clases_fijas():
+    "Obtiene las clases fijas (del usuario o ejemplo)"
+    if clases_fijas_usuario is None:
+        clases = generar_clases_ejemplo(objetivo_clases)
     else:
-        fijo = CLASES_FIJAS_USUARIO
-        if len(fijo) != N_CLASES:
-            raise ValueError(f"Debes definir exactamente {N_CLASES} clases fijas; definiste {len(fijo)}.")
+        clases = clases_fijas_usuario
+        if len(clases) != objetivo_clases:
+            raise ValueError(f"Debes definir {objetivo_clases} clases, tienes {len(clases)}")
+    
+    # Convertir a diccionario de posiciones
+    fijas = {}
+    for dia, hora in clases:
+        if dia not in dia_a_indice or hora not in hora_a_indice:
+            raise ValueError(f"Clase inválida: {dia} {hora}")
+        
+        dia_idx = dia_a_indice[dia]
+        bloque_idx = hora_a_indice[hora]
+        fijas[posicion(dia_idx, bloque_idx)] = CLASE
+    
+    return fijas
 
-    dic = {}
-    for (dia, hora) in fijo:
-        if dia not in dia_a_idx or hora not in hora_a_slot:
-            raise ValueError(f"Clase fija inválida: {(dia, hora)}. Revisa día/hora.")
-        d = dia_a_idx[dia]; s = hora_a_slot[hora]
-        dic[pos(d,s)] = CLASE
-    return dic
+# Obtener clases fijas
+clases_fijas = obtener_clases_fijas()
 
-FIJAS = clases_fijas_indices()
+def crear_genoma_vacio():
+    "Crea un genoma vacío con clases fijas"
+    genoma = [LIBRE] * total_bloques
+    for pos in clases_fijas:
+        genoma[pos] = CLASE
+    return genoma
 
-# ---------- Representación ----------
-def nuevo_genoma_vacio()->List[str]:
-    g = [LIBRE] * N_GENES
-    for i in FIJAS:
-        g[i] = CLASE
-    return g
-
-# ---------- Construcción de individuo ----------
-def crear_individuo()->List[str]:
-    """
-    Construye una solución inicial factible respecto a:
-    - No mover clases fijas
-    - Satisfacer conteos objetivo de GYM y ESTUDIO
-    - Reservar ≥1 LIBRE por día
-    - Rellenar con OCIO
-    """
-    g = nuevo_genoma_vacio()
-
-    # 1) Reservar 1 LIBRE por día (si el día está muy copado por CLASE, se elegirá un slot libre cualquier)
-    for d in range(N_DIAS):
-        slots_d = [pos(d,s) for s in range(N_SLOTS)]
-        candidatos = [i for i in slots_d if g[i] == LIBRE]
-        if candidatos:
-            # Prefiere horas centrales para descanso
-            candidatos.sort(key=lambda i: abs(SLOTS[i % N_SLOTS]-14))
-            g[candidatos[0]] = LIBRE
-
-    # 2) Colocar ESTUDIO (7 bloques): preferimos contiguidad de 2 bloques en un mismo día cuando se pueda
-    restantes = N_ESTUDIO
+def crear_individuo():
+    "Crea un individuo válido para el horario"
+    genoma = crear_genoma_vacio()
+    
+    # 1. Reservar 1 LIBRE por día
+    for dia_idx in range(n_dias):
+        bloques_del_dia = [posicion(dia_idx, b) for b in range(n_bloques)]
+        libres_disponibles = [pos for pos in bloques_del_dia if genoma[pos] == LIBRE]
+        
+        if libres_disponibles:
+            # Preferir horas centrales para descanso
+            libres_disponibles.sort(key=lambda pos: abs(horas_inicio[pos % n_bloques] - 14))
+            genoma[libres_disponibles[0]] = LIBRE
+    
+    # 2. Colocar ESTUDIO (7 bloques) - preferir contiguos
+    estudio_restante = objetivo_estudio
     intentos = 0
-    while restantes > 0 and intentos < 1000:
-        d = random.randrange(N_DIAS)
-        # intentar pareja contigua
-        pares = [(s, s+1) for s in range(N_SLOTS-1)]
-        random.shuffle(pares)
-        puesto = False
-        for s1,s2 in pares:
-            i1, i2 = pos(d,s1), pos(d,s2)
-            if g[i1] == LIBRE and g[i2] == LIBRE and i1 not in FIJAS and i2 not in FIJAS:
-                g[i1] = ESTUDIO; restantes -= 1
-                if restantes > 0:
-                    g[i2] = ESTUDIO; restantes -= 1
-                puesto = True
+    
+    while estudio_restante > 0 and intentos < 1000:
+        dia_idx = random.randrange(n_dias)
+        
+        # Intentar poner 2 bloques seguidos
+        for bloque_idx in range(n_bloques - 1):
+            pos1 = posicion(dia_idx, bloque_idx)
+            pos2 = posicion(dia_idx, bloque_idx + 1)
+            
+            if (genoma[pos1] == LIBRE and genoma[pos2] == LIBRE and 
+                pos1 not in clases_fijas and pos2 not in clases_fijas):
+                
+                genoma[pos1] = ESTUDIO
+                estudio_restante -= 1
+                
+                if estudio_restante > 0:
+                    genoma[pos2] = ESTUDIO
+                    estudio_restante -= 1
                 break
-        if not puesto:
-            # colocar individual
-            libres = [pos(d,s) for s in range(N_SLOTS) if g[pos(d,s)]==LIBRE and pos(d,s) not in FIJAS]
+        else:
+            # Si no hay pares, poner individual
+            libres = [posicion(dia_idx, b) for b in range(n_bloques) 
+                     if genoma[posicion(dia_idx, b)] == LIBRE and posicion(dia_idx, b) not in clases_fijas]
             if libres:
-                g[random.choice(libres)] = ESTUDIO
-                restantes -= 1
+                genoma[random.choice(libres)] = ESTUDIO
+                estudio_restante -= 1
+        
         intentos += 1
-
-    # 3) Colocar GYM (5 bloques): preferir tardes, y evitar (suave) consecutividad diaria (se afina en fitness)
-    restantes = N_GYM
+    
+    # 3. Colocar GYM (5 bloques) - preferir tardes
+    gym_restante = objetivo_gym
     intentos = 0
-    while restantes > 0 and intentos < 1000:
-        d = random.randrange(N_DIAS)
-        slots_tarde = [s for s,h in enumerate(SLOTS) if h>=16]
-        random.shuffle(slots_tarde)
+    
+    while gym_restante > 0 and intentos < 1000:
+        dia_idx = random.randrange(n_dias)
+        
+        # Preferir bloques de tarde (16:00 en adelante)
+        bloques_tarde = [b for b, h in enumerate(horas_inicio) if h >= 16]
+        random.shuffle(bloques_tarde)
+        
         colocado = False
-        for s in slots_tarde + list(range(N_SLOTS)):  # si no hay tarde, donde se pueda
-            i = pos(d,s)
-            if g[i] == LIBRE and i not in FIJAS:
-                g[i] = GYM
-                restantes -= 1
+        for bloque_idx in bloques_tarde + list(range(n_bloques)):
+            pos = posicion(dia_idx, bloque_idx)
+            if genoma[pos] == LIBRE and pos not in clases_fijas:
+                genoma[pos] = GYM
+                gym_restante -= 1
                 colocado = True
                 break
+        
         intentos += 1
+    
+    # 4. Rellenar con OCIO
+    for pos in range(total_bloques):
+        if pos in clases_fijas:
+            genoma[pos] = CLASE
+        elif genoma[pos] not in [CLASE, ESTUDIO, GYM, LIBRE]:
+            genoma[pos] = OCIO
+    
+    return genoma
 
-    # 4) Rellenar con OCIO (lo que quede sin CLASE/ESTUDIO/GYM/LIBRE)
-    for i in range(N_GENES):
-        if i in FIJAS: 
-            g[i] = CLASE
-        elif g[i] == LIBRE:
-            # Mantenemos LIBRE reservado como está; el resto a OCIO
-            pass
-    for i in range(N_GENES):
-        if g[i] not in (CLASE, ESTUDIO, GYM, LIBRE):
-            g[i] = OCIO
+def crear_poblacion(tamano=60):
+    "Crea una población inicial"
+    return [crear_individuo() for _ in range(tamano)]
 
-    return g
+def fitness(genoma):
+    "Calcula el fitness del individuo (mayor = mejor)"
+    penalizacion = 0
+    recompensa = 0
+    
+    # Penalizaciones duras
+    # 1. Clases fijas respetadas
+    for pos, actividad in clases_fijas.items():
+        if genoma[pos] != CLASE:
+            penalizacion += 500
+    
+    # 2. Conteos exactos
+    conteo = Counter(genoma)
+    penalizacion += abs(conteo[CLASE] - objetivo_clases) * 100
+    penalizacion += abs(conteo[GYM] - objetivo_gym) * 30
+    penalizacion += abs(conteo[ESTUDIO] - objetivo_estudio) * 30
+    
+    # 3. Al menos 1 LIBRE por día
+    for dia_idx in range(n_dias):
+        libres_del_dia = sum(1 for b in range(n_bloques) 
+                           if genoma[posicion(dia_idx, b)] == LIBRE)
+        if libres_del_dia < min_libre_por_dia:
+            penalizacion += 40
+    
+    # Penalizaciones blandas
+    # 1. GYM en días consecutivos
+    dias_con_gym = []
+    for dia_idx in range(n_dias):
+        tiene_gym = any(genoma[posicion(dia_idx, b)] == GYM for b in range(n_bloques))
+        if tiene_gym:
+            dias_con_gym.append(dia_idx)
+    
+    for i in range(len(dias_con_gym) - 1):
+        if dias_con_gym[i+1] - dias_con_gym[i] == 1:
+            penalizacion += 5
+    
+    # 2. Recompensar estudio contiguo
+    for dia_idx in range(n_dias):
+        for bloque_idx in range(n_bloques - 1):
+            pos1 = posicion(dia_idx, bloque_idx)
+            pos2 = posicion(dia_idx, bloque_idx + 1)
+            if genoma[pos1] == ESTUDIO and genoma[pos2] == ESTUDIO:
+                recompensa += 3
+    
+    # 3. Penalizar huecos LIBRE entre actividades
+    for dia_idx in range(n_dias):
+        for bloque_idx in range(1, n_bloques - 1):
+            pos_anterior = posicion(dia_idx, bloque_idx - 1)
+            pos_actual = posicion(dia_idx, bloque_idx)
+            pos_siguiente = posicion(dia_idx, bloque_idx + 1)
+            
+            if (genoma[pos_actual] == LIBRE and 
+                genoma[pos_anterior] != LIBRE and 
+                genoma[pos_siguiente] != LIBRE):
+                penalizacion += 2
+    
+    # 4. Recompensar ocio en fin de semana
+    ocio_finde = sum(1 for dia_idx in [5, 6] for b in range(n_bloques) 
+                    if genoma[posicion(dia_idx, b)] == OCIO)
+    ocio_semana = sum(1 for dia_idx in [0, 1, 2, 3, 4] for b in range(n_bloques) 
+                     if genoma[posicion(dia_idx, b)] == OCIO)
+    
+    if ocio_finde + ocio_semana > 0:
+        recompensa += int(10 * ocio_finde / (ocio_finde + ocio_semana))
+    
+    return 1000 - penalizacion + recompensa
 
-def crear_poblacion(size=60)->List[List[str]]:
-    return [crear_individuo() for _ in range(size)]
+def seleccion(poblacion):
+    "Selección por torneo de 3"
+    a, b, c = random.sample(poblacion, 3)
+    return max([a, b, c], key=fitness)
 
-# ---------- Fitness ----------
-def fitness(g:List[str])->float:
-    """
-    Maximizar.
-    Penalizaciones (duras y blandas) y recompensas:
-      - [DURA] Clases fijas respetadas
-      - [DURA] Conteos exactos: CLASE=25, GYM=5, ESTUDIO=7
-      - [DURA] ≥1 LIBRE por día
-      - [BLANDA] Evitar GYM en días consecutivos
-      - [BLANDA] Recompensar estudio en parejas contiguas
-      - [BLANDA] Penalizar huecos LIBRE entre actividades el mismo día (compactar)
-      - [BLANDA] Recompensar más OCIO en fin de semana (Sáb/Dom)
-    """
-    P = 0  # penalizaciones
-    R = 0  # recompensas
-
-    # Duras: clases fijas
-    for i, act in FIJAS.items():
-        if g[i] != CLASE:
-            P += 500  # muy alto
-
-    # Duras: conteos exactos
-    c = Counter(g)
-    P += abs(c[CLASE]  - N_CLASES)  * 100
-    # Si por cruce/mutación tocó clases, la reparación suele corregir; esto refuerza.
-    P += abs(c[GYM]    - N_GYM)     * 30
-    P += abs(c[ESTUDIO]- N_ESTUDIO) * 30
-
-    # Dura: ≥1 LIBRE por día
-    for d in range(N_DIAS):
-        libres_d = sum(1 for s in range(N_SLOTS) if g[pos(d,s)] == LIBRE)
-        if libres_d < MIN_LIBRE_POR_DIA:
-            P += 40
-
-    # Blanda: GYM en días consecutivos (penaliza)
-    dias_gym = sorted({d for d in range(N_DIAS) if any(g[pos(d,s)]==GYM for s in range(N_SLOTS))})
-    for a, b in zip(dias_gym, dias_gym[1:]):
-        if b - a == 1:
-            P += 5
-
-    # Blanda: estudio contiguo (recompensa)
-    for d in range(N_DIAS):
-        for s in range(N_SLOTS-1):
-            a, b = g[pos(d,s)], g[pos(d,s+1)]
-            if a==ESTUDIO and b==ESTUDIO:
-                R += 3
-
-    # Blanda: huecos (LIBRE) entre actividades no libres (penaliza)
-    for d in range(N_DIAS):
-        for s in range(1, N_SLOTS-1):
-            a,b,c3 = g[pos(d,s-1)], g[pos(d,s)], g[pos(d,s+1)]
-            if b==LIBRE and a!=LIBRE and c3!=LIBRE:
-                P += 2
-
-    # Blanda: ocio concentrado fin de semana (recompensa)
-    ocio_weekend = sum(1 for d in [5,6] for s in range(N_SLOTS) if g[pos(d,s)]==OCIO)
-    ocio_weekday = sum(1 for d in [0,1,2,3,4] for s in range(N_SLOTS) if g[pos(d,s)]==OCIO)
-    if ocio_weekend + ocio_weekday > 0:
-        R += int(10 * ocio_weekend / (ocio_weekend + ocio_weekday))
-
-    # Nota: OCIO queda automáticamente limitado por la disponibilidad
-    return 1000 - P + R
-
-# ---------- Operadores GA ----------
-def seleccion(poblacion:List[List[str]])->List[str]:
-    a,b,c = random.sample(poblacion, 3)  # torneo de 3
-    return max([a,b,c], key=fitness)
-
-def reparar(ind:List[str])->List[str]:
-    """
-    Repara (post cruce/mutación):
-      - Fijar CLASE en posiciones fijas
-      - Ajustar conteos de GYM/ESTUDIO al objetivo (usando OCIO/LIBRE como reserva)
-      - Garantizar ≥1 LIBRE por día (si es posible)
-    """
-    g = ind[:]
-
+def reparar(genoma):
+    "Repara un genoma después de cruce/mutación"
+    g = genoma[:]
+    
     # Fijar clases
-    for i in FIJAS: g[i] = CLASE
-
-    # Conteos actuales
-    c = Counter(g)
-
-    # 1) Quitar exceso de GYM/ESTUDIO convirtiendo a OCIO
-    exceso_gym = max(0, c[GYM]-N_GYM)
-    exceso_est = max(0, c[ESTUDIO]-N_ESTUDIO)
+    for pos in clases_fijas:
+        g[pos] = CLASE
+    
+    # Ajustar conteos
+    conteo = Counter(g)
+    
+    # Quitar exceso
+    exceso_gym = max(0, conteo[GYM] - objetivo_gym)
+    exceso_estudio = max(0, conteo[ESTUDIO] - objetivo_estudio)
+    
     if exceso_gym:
-        idxs = [i for i,v in enumerate(g) if v==GYM and i not in FIJAS]
-        random.shuffle(idxs)
-        for i in idxs[:exceso_gym]: g[i] = OCIO
-    if exceso_est:
-        idxs = [i for i,v in enumerate(g) if v==ESTUDIO and i not in FIJAS]
-        random.shuffle(idxs)
-        for i in idxs[:exceso_est]: g[i] = OCIO
-
-    # 2) Completar faltantes de GYM/ESTUDIO usando primero OCIO, luego LIBRE
-    def completar(label, objetivo):
-        faltan = objetivo - Counter(g)[label]
-        if faltan <= 0: return
-        pool = [i for i,v in enumerate(g) if v==OCIO and i not in FIJAS]
+        posiciones_gym = [i for i, v in enumerate(g) if v == GYM and i not in clases_fijas]
+        random.shuffle(posiciones_gym)
+        for pos in posiciones_gym[:exceso_gym]:
+            g[pos] = OCIO
+    
+    if exceso_estudio:
+        posiciones_estudio = [i for i, v in enumerate(g) if v == ESTUDIO and i not in clases_fijas]
+        random.shuffle(posiciones_estudio)
+        for pos in posiciones_estudio[:exceso_estudio]:
+            g[pos] = OCIO
+    
+    # Completar faltantes
+    def completar_actividad(actividad, objetivo):
+        faltan = objetivo - Counter(g)[actividad]
+        if faltan <= 0:
+            return
+        
+        # Usar OCIO primero
+        pool = [i for i, v in enumerate(g) if v == OCIO and i not in clases_fijas]
         random.shuffle(pool)
-        while faltan>0 and pool:
-            g[pool.pop()] = label
+        
+        while faltan > 0 and pool:
+            g[pool.pop()] = actividad
             faltan -= 1
-        if faltan>0:
-            pool = [i for i,v in enumerate(g) if v==LIBRE and i not in FIJAS]
+        
+        # Si aún faltan, usar LIBRE
+        if faltan > 0:
+            pool = [i for i, v in enumerate(g) if v == LIBRE and i not in clases_fijas]
             random.shuffle(pool)
-            while faltan>0 and pool:
-                g[pool.pop()] = label
+            while faltan > 0 and pool:
+                g[pool.pop()] = actividad
                 faltan -= 1
-    completar(GYM, N_GYM)
-    completar(ESTUDIO, N_ESTUDIO)
-
-    # 3) Garantizar ≥1 LIBRE por día (si todavía hay hueco)
-    for d in range(N_DIAS):
-        if sum(1 for s in range(N_SLOTS) if g[pos(d,s)]==LIBRE) >= MIN_LIBRE_POR_DIA:
+    
+    completar_actividad(GYM, objetivo_gym)
+    completar_actividad(ESTUDIO, objetivo_estudio)
+    
+    # Garantizar 1 LIBRE por día
+    for dia_idx in range(n_dias):
+        libres_del_dia = sum(1 for b in range(n_bloques) 
+                           if g[posicion(dia_idx, b)] == LIBRE)
+        
+        if libres_del_dia >= min_libre_por_dia:
             continue
-        # Convertir un OCIO a LIBRE (o actividad blanda) si existe
-        candidatos = [pos(d,s) for s in range(N_SLOTS) if g[pos(d,s)]==OCIO and pos(d,s) not in FIJAS]
+        
+        # Convertir OCIO a LIBRE si es posible
+        candidatos = [posicion(dia_idx, b) for b in range(n_bloques) 
+                     if g[posicion(dia_idx, b)] == OCIO and posicion(dia_idx, b) not in clases_fijas]
+        
         if candidatos:
             g[random.choice(candidatos)] = LIBRE
-        else:
-            # Como última opción, si no hay OCIO, intentar convertir GYM/ESTUDIO (muy raro)
-            cand2 = [pos(d,s) for s in range(N_SLOTS) if g[pos(d,s)] in (GYM, ESTUDIO) and pos(d,s) not in FIJAS]
-            if cand2:
-                g[random.choice(cand2)] = LIBRE
-
+    
     return g
 
-def cruce(p1:List[str], p2:List[str], pc=0.8)->List[str]:
-    if random.random() > pc:
-        hijo = p1[:]
+def cruce(padre1, padre2, prob_cruce=0.8):
+    "Cruce de dos puntos"
+    if random.random() > prob_cruce:
+        hijo = padre1[:]
     else:
-        c1,c2 = sorted(random.sample(range(N_GENES), 2))
-        hijo = p1[:c1] + p2[c1:c2] + p1[c2:]
+        punto1, punto2 = sorted(random.sample(range(total_bloques), 2))
+        hijo = padre1[:punto1] + padre2[punto1:punto2] + padre1[punto2:]
+    
     return reparar(hijo)
 
-def mutacion(ind:List[str], pm=0.06)->List[str]:
-    g = ind[:]
-    # swap dentro del mismo día
-    if random.random() < pm:
-        d = random.randrange(N_DIAS)
-        s1, s2 = random.sample(range(N_SLOTS), 2)
-        i1, i2 = pos(d,s1), pos(d,s2)
-        if i1 not in FIJAS and i2 not in FIJAS:
-            g[i1], g[i2] = g[i2], g[i1]
-    # reasignación blanda
-    if random.random() < pm:
-        i = random.randrange(N_GENES)
-        if i not in FIJAS:
-            g[i] = random.choice(ACT_MUTABLES)
+def mutacion(genoma, prob_mutacion=0.06):
+    "Mutación por swap y reasignación"
+    g = genoma[:]
+    
+    # Swap dentro del mismo día
+    if random.random() < prob_mutacion:
+        dia_idx = random.randrange(n_dias)
+        bloque1, bloque2 = random.sample(range(n_bloques), 2)
+        pos1 = posicion(dia_idx, bloque1)
+        pos2 = posicion(dia_idx, bloque2)
+        
+        if pos1 not in clases_fijas and pos2 not in clases_fijas:
+            g[pos1], g[pos2] = g[pos2], g[pos1]
+    
+    # Reasignación
+    if random.random() < prob_mutacion:
+        pos = random.randrange(total_bloques)
+        if pos not in clases_fijas:
+            g[pos] = random.choice(actividades_mutables)
+    
     return reparar(g)
 
-# ---------- Bucle evolutivo ----------
-def evolucion(poblacion:List[List[str]], generaciones=200, elitismo=2, seed=RANDOM_SEED)->List[str]:
-    random.seed(seed)
-    best = max(poblacion, key=fitness)
-    for gen in range(1, generaciones+1):
-        nueva = []
-        # elitismo
-        orden = sorted(poblacion, key=fitness, reverse=True)
-        nueva.extend(orden[:elitismo])
-        # reproducción
-        while len(nueva) < len(poblacion):
-            p1 = seleccion(poblacion)
-            p2 = seleccion(poblacion)
-            hijo = cruce(p1, p2)
+def evolucionar(poblacion, generaciones=200, elitismo=2):
+    "Algoritmo genético principal"
+    mejor = max(poblacion, key=fitness)
+    
+    for gen in range(1, generaciones + 1):
+        nueva_poblacion = []
+        
+        # Elitismo
+        ordenados = sorted(poblacion, key=fitness, reverse=True)
+        nueva_poblacion.extend(ordenados[:elitismo])
+        
+        # Reproducción
+        while len(nueva_poblacion) < len(poblacion):
+            padre1 = seleccion(poblacion)
+            padre2 = seleccion(poblacion)
+            hijo = cruce(padre1, padre2)
             hijo = mutacion(hijo)
-            nueva.append(hijo)
-        poblacion = nueva
-        cand = max(poblacion, key=fitness)
-        if fitness(cand) > fitness(best):
-            best = cand
-        if gen % 20 == 0 or gen==1 or gen==generaciones:
-            print(f"Gen {gen:3d} | Best fitness: {fitness(best):.2f}")
-    return best
+            nueva_poblacion.append(hijo)
+        
+        poblacion = nueva_poblacion
+        candidato = max(poblacion, key=fitness)
+        
+        if fitness(candidato) > fitness(mejor):
+            mejor = candidato
+        
+        if gen % 20 == 0 or gen == 1 or gen == generaciones:
+            print(f"Gen {gen:3d} | Mejor fitness: {fitness(mejor):.2f}")
+    
+    return mejor
 
-# ---------- Salida / Visualización ----------
-def grid(g:List[str]):
-    return [[g[pos(d,s)] for s in range(N_SLOTS)] for d in range(N_DIAS)]
+def mostrar_horario(genoma):
+    "Muestra el horario en formato tabla"
+    print("\nHorario semanal (bloques de 2h):\n")
+    
+    # Encabezado
+    cabecera = "Hora      | " + " | ".join(f"{dia:^8}" for dia in dias)
+    print(cabecera)
+    print("-" * len(cabecera))
+    
+    # Filas
+    for bloque_idx, hora in enumerate(horas_inicio):
+        fila = []
+        for dia_idx in range(n_dias):
+            pos = posicion(dia_idx, bloque_idx)
+            actividad = genoma[pos]
+            fila.append(f"{actividad:^8}")
+        
+        print(f"{hora:02d}-{hora + duracion_bloque:02d}   | " + " | ".join(fila))
 
-def imprimir_horario(g:List[str]):
-    tabla = grid(g)
-    cab = "Hora      | " + " | ".join(f"{d:^8}" for d in DIAS)
-    print("\nHorario (bloques de 2h):\n")
-    print(cab)
-    print("-"*len(cab))
-    for s_idx, h in enumerate(SLOTS):
-        fila = [f"{tabla[d][s_idx]:^8}" for d in range(N_DIAS)]
-        print(f"{h:02d}-{h+BLOQUE:02d}   | " + " | ".join(fila))
-
-def horario_markdown(g:List[str])->str:
-    tabla = grid(g)
-    lineas = []
-    lineas.append("| Hora  | " + " | ".join(DIAS) + " |")
-    lineas.append("|:-----:|" + "|".join([":-----:"]*len(DIAS)) + "|")
-    for s_idx,h in enumerate(SLOTS):
-        fila = [tabla[d][s_idx] for d in range(N_DIAS)]
-        lineas.append(f"| {h:02d}-{h+BLOQUE:02d} | " + " | ".join(fila) + " |")
-    return "\n".join(lineas)
-
-def kpis(g:List[str])->dict:
-    c = Counter(g)
-    dias_gym = sorted({DIAS[d] for d in range(N_DIAS) if any(g[pos(d,s)]==GYM for s in range(N_SLOTS))})
-    libres_por_dia = {DIAS[d]: sum(1 for s in range(N_SLOTS) if g[pos(d,s)]==LIBRE) for d in range(N_DIAS)}
+def mostrar_kpis(genoma):
+    "Muestra métricas del horario"
+    conteo = Counter(genoma)
+    
+    # Días con GYM
+    dias_gym = []
+    for dia_idx in range(n_dias):
+        tiene_gym = any(genoma[posicion(dia_idx, b)] == GYM for b in range(n_bloques))
+        if tiene_gym:
+            dias_gym.append(dias[dia_idx])
+    
+    # LIBRES por día
+    libres_por_dia = {}
+    for dia_idx in range(n_dias):
+        libres = sum(1 for b in range(n_bloques) 
+                    if genoma[posicion(dia_idx, b)] == LIBRE)
+        libres_por_dia[dias[dia_idx]] = libres
+    
     return {
-        "fitness": round(fitness(g),2),
-        "conteos": dict(c),
+        "fitness": round(fitness(genoma), 2),
+        "conteos": dict(conteo),
         "dias_gym": dias_gym,
         "libres_por_dia": libres_por_dia
     }
-    
-def export_schedule_image(genome, filename="horario.png", palette=None, dpi=200, title=None):
-    """
-    Genera una imagen del horario (tabla días × bloques de 2h).
-    Requiere que existan: DIAS, SLOTS, BLOQUE, N_DIAS, N_SLOTS, pos(), y las etiquetas CLASE/ESTUDIO/GYM/OCIO/LIBRE.
 
-    Parámetros
-    ----------
-    genome : list[str]
-        Lista de longitud N_GENES con una actividad por bloque.
-    filename : str
-        Ruta del archivo de salida (PNG).
-    palette : dict[str, str] | None
-        Mapeo opcional {'CLASE':'#color', 'ESTUDIO':'#color', ...}.
-        Si es None, usa el ciclo de colores por defecto de Matplotlib.
-    dpi : int
-        Resolución de la imagen.
-    title : str | None
-        Título a mostrar encima. Si None, se usa uno por defecto.
-
-    Retorna
-    -------
-    str : ruta del archivo generado.
-    """
-    import matplotlib.pyplot as plt
-    import matplotlib as mpl
-    from matplotlib.patches import Rectangle
-
-    # Validación mínima
-    if len(genome) != N_DIAS * N_SLOTS:
-        raise ValueError(f"El genoma debe tener {N_DIAS*N_SLOTS} genes, recibí {len(genome)}.")
-
-    # Etiquetas que esperaremos colorear
-    etiquetas = [CLASE, ESTUDIO, GYM, OCIO, LIBRE]
-
-    # Paleta por defecto: ciclo de Matplotlib (evita hardcodear colores fijos)
-    if palette is None:
-        ciclo = plt.rcParams.get('axes.prop_cycle', None)
-        if ciclo is not None:
-            base = ciclo.by_key().get('color', [])
-        else:
-            base = []
-        # Fallback simple si no hay ciclo disponible
-        if not base:
-            base = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd']
-        palette = {etq: base[i % len(base)] for i, etq in enumerate(etiquetas)}
-
-    # Figura proporcional al tamaño de la grilla
-    fig_w = 1.4 * N_DIAS
-    fig_h = 0.9 * N_SLOTS + 1.2
-    fig, ax = plt.subplots(figsize=(fig_w, fig_h), dpi=dpi)
-
-    # Dibujar celdas (fila = hora, columna = día)
-    # Queremos la hora más temprana arriba, así que invertimos y (usando N_SLOTS-1-r)
-    for r in range(N_SLOTS):          # r: índice de bloque horario (0=06-08, ...)
-        for c in range(N_DIAS):       # c: índice de día
-            etiqueta = genome[pos(c, r)]
-            color = palette.get(etiqueta, "#DDDDDD")
-            # y visual = invertido para que 06:00 quede arriba
-            y = N_SLOTS - 1 - r
-            rect = Rectangle((c, y), 1, 1, facecolor=color, edgecolor="white", linewidth=1.2)
-            ax.add_patch(rect)
-            ax.text(c + 0.5, y + 0.5, etiqueta, ha="center", va="center", fontsize=9)
-
-    # Límites y ticks
-    ax.set_xlim(0, N_DIAS)
-    ax.set_ylim(0, N_SLOTS)
-    ax.set_xticks([i + 0.5 for i in range(N_DIAS)])
-    ax.set_xticklabels(DIAS, fontsize=11, fontweight="bold")
-    # Etiquetas de horas (invertidas: mostramos de arriba hacia abajo)
-    horas_labels = [f"{h:02d}-{h + BLOQUE:02d}" for h in reversed(SLOTS)]
-    ax.set_yticks([i + 0.5 for i in range(N_SLOTS)])
-    ax.set_yticklabels(horas_labels, fontsize=9)
-
-    # Cuadrícula fina
-    for x in range(N_DIAS + 1):
-        ax.plot([x, x], [0, N_SLOTS], color="white", linewidth=1.2)
-    for y in range(N_SLOTS + 1):
-        ax.plot([0, N_DIAS], [y, y], color="white", linewidth=1.2)
-
-    # Estética
-    ax.set_aspect("equal")
-    ax.set_facecolor("#F5F5F5")
-    ax.tick_params(length=0)
-    for spine in ax.spines.values():
-        spine.set_visible(False)
-
-    # Título
-    if title is None:
-        title = "Horario semanal (bloques de 2 h)"
-    ax.set_title(title, fontsize=13, pad=14)
-
-    # Leyenda
-    handles = [mpl.patches.Patch(color=palette[e], label=e) for e in etiquetas]
-    ax.legend(handles=handles, loc="upper left", bbox_to_anchor=(1.02, 1.0), borderaxespad=0.0)
-
-    # Guardar
-    plt.savefig(filename, bbox_inches="tight", pad_inches=0.2)
-    plt.close(fig)
-    return filename
-
-
-# ---------- Main ----------
-if __name__ == "__main__":
-    pop = crear_poblacion(size=80)
-    mejor = evolucion(pop, generaciones=200, elitismo=2, seed=RANDOM_SEED)
-    imprimir_horario(mejor)
-    print("\nKPIs:", kpis(mejor))
-    print("\nMarkdown (para Wiki de GitHub):\n")
-    print(horario_markdown(mejor))
-    
-    # Generar imagen del horario
-    print("\nGenerando imagen del horario...")
+def generar_imagen_horario(genoma, archivo="horario_generado.png"):
+    "Genera una imagen del horario"
     try:
+        import matplotlib.pyplot as plt
+        import matplotlib.patches as mpatches
         import os
-        # Paleta de colores personalizada (opcional)
-        palette = {
-            CLASE: '#FF6B6B',    # Rojo claro
+        
+        # Colores para cada actividad
+        colores = {
+            CLASE: '#FF6B6B',    # Rojo
             ESTUDIO: '#4ECDC4',  # Turquesa
             GYM: '#45B7D1',      # Azul
-            OCIO: '#96CEB4',     # Verde menta
-            LIBRE: '#FFEAA7'     # Amarillo claro
+            OCIO: '#96CEB4',     # Verde
+            LIBRE: '#FFEAA7'     # Amarillo
         }
         
-        # Determinar la ruta de guardado
-        # Si estamos ejecutando desde la carpeta GA, guardamos aquí mismo
-        # Si estamos desde el root del proyecto, guardamos en Entrega1/GA/
-        if os.path.exists("main.py") and "GA" in os.getcwd():
-            # Estamos en la carpeta GA
-            ruta_imagen = "horario_generado.png"
-        else:
-            # Estamos en el root o en otra carpeta
-            ruta_imagen = "Entrega1/GA/horario_generado.png"
-            # Crear la carpeta si no existe
-            os.makedirs("Entrega1/GA", exist_ok=True)
+        # Crear figura
+        fig, ax = plt.subplots(figsize=(12, 8))
         
-        # Generar la imagen
-        archivo = export_schedule_image(
-            mejor, 
-            filename=ruta_imagen, 
-            palette=palette,
-            dpi=200,
-            title=f"Horario Semanal Optimizado (Fitness: {fitness(mejor):.2f})"
-        )
-        print(f"✓ Imagen guardada como: {archivo}")
+        # Dibujar celdas
+        for dia_idx in range(n_dias):
+            for bloque_idx in range(n_bloques):
+                pos = posicion(dia_idx, bloque_idx)
+                actividad = genoma[pos]
+                color = colores.get(actividad, '#DDDDDD')
+                
+                # Invertir Y para que 6:00 quede arriba
+                y = n_bloques - 1 - bloque_idx
+                
+                rect = mpatches.Rectangle((dia_idx, y), 1, 1, 
+                                        facecolor=color, edgecolor='white', linewidth=1)
+                ax.add_patch(rect)
+                ax.text(dia_idx + 0.5, y + 0.5, actividad, 
+                       ha='center', va='center', fontsize=9)
+        
+        # Configurar ejes
+        ax.set_xlim(0, n_dias)
+        ax.set_ylim(0, n_bloques)
+        ax.set_xticks([i + 0.5 for i in range(n_dias)])
+        ax.set_xticklabels(dias, fontsize=11, fontweight='bold')
+        
+        # Etiquetas de horas
+        horas_labels = [f"{h:02d}-{h + duracion_bloque:02d}" for h in reversed(horas_inicio)]
+        ax.set_yticks([i + 0.5 for i in range(n_bloques)])
+        ax.set_yticklabels(horas_labels, fontsize=9)
+        
+        # Cuadrícula
+        for x in range(n_dias + 1):
+            ax.plot([x, x], [0, n_bloques], color='white', linewidth=1)
+        for y in range(n_bloques + 1):
+            ax.plot([0, n_dias], [y, y], color='white', linewidth=1)
+        
+        # Estilo
+        ax.set_aspect('equal')
+        ax.set_facecolor('#F5F5F5')
+        ax.tick_params(length=0)
+        for spine in ax.spines.values():
+            spine.set_visible(False)
+        
+        # Título
+        ax.set_title(f"Horario Semanal Optimizado (Fitness: {fitness(genoma):.2f})", 
+                    fontsize=13, pad=14)
+        
+        # Leyenda
+        handles = [mpatches.Patch(color=colores[act], label=act) for act in colores.keys()]
+        ax.legend(handles=handles, loc='upper left', bbox_to_anchor=(1.02, 1.0))
+        
+        # Guardar
+        plt.savefig(archivo, bbox_inches='tight', pad_inches=0.2)
+        plt.close(fig)
+        
+        return archivo
+        
     except ImportError:
         print("⚠ matplotlib no está instalado. Ejecuta: pip install matplotlib")
+        return None
+
+# Ejecutar algoritmo
+if __name__ == "__main__":
+    print("🧬 Algoritmo Genético para Horarios")
+    print("=" * 40)
+    
+    # Crear población inicial
+    poblacion = crear_poblacion(80)
+    print(f"Población inicial: {len(poblacion)} individuos")
+    
+    # Evolucionar
+    mejor_horario = evolucionar(poblacion, generaciones=200, elitismo=2)
+    
+    # Mostrar resultados
+    mostrar_horario(mejor_horario)
+    
+    kpis = mostrar_kpis(mejor_horario)
+    print(f"\n📊 KPIs del mejor horario:")
+    print(f"Fitness: {kpis['fitness']}")
+    print(f"Conteos: {kpis['conteos']}")
+    print(f"Días con GYM: {kpis['dias_gym']}")
+    print(f"LIBRES por día: {kpis['libres_por_dia']}")
+    
+    # Generar imagen
+    print("\n🎨 Generando imagen del horario...")
+    archivo_imagen = generar_imagen_horario(mejor_horario)
+    if archivo_imagen:
+        print(f"✅ Imagen guardada como: {archivo_imagen}")
+    
+    print("\n ¡Horario optimizado completado!")
 
