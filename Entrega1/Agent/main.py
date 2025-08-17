@@ -205,5 +205,4 @@ def mostrar_solucion(solucion, tablero_obj):
         tablero_obj.mostrar_tablero(list(state))
         print()
 
-# Mostrar la solución
 mostrar_solucion(solucion, tablero_obj)
