@@ -24,39 +24,39 @@ class Tablero:
     # Función para obtener los movimientos válidos que tiene la casilla vacía desde una posición determinada
     def get_movimientos_validos(self, casilla_vacia):
         movimientos = []
-        if casilla_vacia >= 3:  # Puede moverse arriba
-            movimientos.append('U')
-        if casilla_vacia <= 5:  # Puede moverse abajo
-            movimientos.append('D')
-        if casilla_vacia % 3 != 0:  # Puede moverse izquierda
-            movimientos.append('L')
-        if casilla_vacia % 3 != 2:  # Puede moverse derecha
-            movimientos.append('R')
+        if casilla_vacia >= 3:  # Si el indice de la casilla vacía es mayor o igual a 3, puede moverse arriba
+            movimientos.append('Arriba')
+        if casilla_vacia <= 5:  # Si el indice de la casilla vacía es menor o igual a 5, puede moverse abajo
+            movimientos.append('Abajo')
+        if casilla_vacia % 3 != 0:  # Si el indice de la casilla vacía / 3 tiene residuo diferente a 0, puede moverse izquierda
+            movimientos.append('Izquierda')
+        if casilla_vacia % 3 != 2:  # Si el indice de la casilla vacía / 3 tiene residuo diferente a 2, puede moverse derecha
+            movimientos.append('Derecha')
         return movimientos
     
+    # Función para mover la casilla vacía
     def mover_vacia(self, estado, casilla_vacia, direccion):
-        """Mueve el espacio en blanco en la dirección especificada"""
         nuevo_estado = estado[:] # Creamos copia del estado actual
-        movimientos = {'U': -3, 'D': 3, 'L': -1, 'R': 1}
-        nueva_pos = casilla_vacia + movimientos[direccion]
-        nuevo_estado[casilla_vacia], nuevo_estado[nueva_pos] = nuevo_estado[nueva_pos], nuevo_estado[casilla_vacia]
+        movimientos = {'Arriba': -3, 'Abajo': 3, 'Izquierda': -1, 'Derecha': 1}
+        nueva_pos = casilla_vacia + movimientos[direccion] # Coge la casilla vacia y le suma el desplazamiento del movimiento a hacer
+        nuevo_estado[casilla_vacia], nuevo_estado[nueva_pos] = nuevo_estado[nueva_pos], nuevo_estado[casilla_vacia] # Simplemente cambia las casillas de posición
         return nuevo_estado
     
+    # Función para mostrar el tablero
     def mostrar_tablero(self, tablero):
         print("+---+---+---+")
         for col in range(0, 9, 3):
-            visual_col = "|"
+            palo = "|"
             for casilla in tablero[col:col + 3]:
-                if casilla == 0:  # Blank tile
-                    visual_col += f" {colored(' ', 'cyan')} |"
+                if casilla == 0:  
+                    palo += f" {colored(' ', 'yellow')} |"
                 else:
-                    visual_col += f" {colored(str(casilla), 'yellow')} |"
-            print(visual_col)
+                    palo += f" {colored(str(casilla), 'green')} |"
+            print(palo)
             print("+---+---+---+")         
             
 
-# Clase que representa un nodo en el espacio de búsqueda.
-class Node:
+class Nodo:
     def __init__(self, state, parent=None, action=None, g=0, h=0):
         self.state = state        # Estado actual que representa el nodo.
         self.parent = parent      # Nodo padre (para reconstruir la ruta).
@@ -76,31 +76,31 @@ class Node:
 
 def a_star(problem):
     # Crea el nodo inicial con g=0 y h calculada.
-    start = Node(state=problem.initial, g=0, h=problem.h(problem.initial))
+    start = Nodo(state=problem.inicial, g=0, h=problem.h(problem.inicial))
     frontier = []  # frontera será un heap de tuplas (f, contador, nodo)
     counter = itertools.count()  # contador para tie-breaker en caso de empates en f
 
     # Inserta el nodo inicial en la frontera.
     heapq.heappush(frontier, (start.f, next(counter), start))
-    reached = {problem.initial: start}  # diccionario de mejores nodos conocidos por estado
+    reached = {problem.inicial: start}  # diccionario de mejores nodos conocidos por estado
 
     # Bucle principal de A*
     while frontier:
         _, _, current = heapq.heappop(frontier)  # extrae el nodo con menor f
 
         # Si el nodo actual es meta, lo devolvemos (ruta encontrada).
-        if problem.is_goal(current.state):
+        if problem.is_objetivo(current.state):
             return current
 
         # Expandir sucesores
-        for action in problem.actions(current.state):
-            child_state = problem.result(current.state, action)  # estado resultante
+        for action in problem.acciones(current.state):
+            child_state = problem.resultado(current.state, action)  # estado resultadoante
             tentative_g = current.g + problem.action_cost(current.state, action, child_state)  # costo acumulado
 
             # Si no se ha alcanzado ese estado antes o se encuentra un mejor camino (menor g)
             if (child_state not in reached) or (tentative_g < reached[child_state].g):
                 # Crear el nodo hijo con su g y h
-                child = Node(
+                child = Nodo(
                     state=child_state,
                     parent=current,
                     action=action,
@@ -115,104 +115,95 @@ def a_star(problem):
     return None
 
 
-# Clase que encapsula el problema de búsqueda para el 8-puzzle.
-class PuzzleProblem:
-    def __init__(self, initial, goal):
-        self.initial = tuple(initial)  # Estado inicial del problema (como tupla para ser hasheable).
-        self.goal = tuple(goal)        # Estado objetivo.
+class Problema_8Puzzle:
+    def __init__(self, inicial, objetivo):
+        self.inicial = tuple(inicial) # Estado inicial 
+        self.objetivo = tuple(objetivo) # Estado objetivo
 
-    def actions(self, state):
-        """Devuelve las acciones posibles desde un estado: U, D, L, R"""
-        state_list = list(state)
-        casilla_vacia = state_list.index(0)
+    def acciones(self, state):
+        lista_estados = list(state)
+        casilla_vacia = lista_estados.index(0)
         acciones = []
         
-        if casilla_vacia >= 3:  # Puede moverse arriba
-            acciones.append('U')
-        if casilla_vacia <= 5:  # Puede moverse abajo
-            acciones.append('D')
-        if casilla_vacia % 3 != 0:  # Puede moverse izquierda
-            acciones.append('L')
-        if casilla_vacia % 3 != 2:  # Puede moverse derecha
-            acciones.append('R')
+        if casilla_vacia >= 3:  
+            acciones.append('Arriba')
+        if casilla_vacia <= 5:  
+            acciones.append('Abajo')
+        if casilla_vacia % 3 != 0:  
+            acciones.append('Izquierda')
+        if casilla_vacia % 3 != 2:  
+            acciones.append('Derecha')
         
         return acciones
 
-    def result(self, state, action):
-        """Devuelve el estado resultante de aplicar una acción"""
-        state_list = list(state)
-        casilla_vacia = state_list.index(0)
-        movimientos = {'U': -3, 'D': 3, 'L': -1, 'R': 1}
+    def resultado(self, state, action):
+        lista_estados = list(state)
+        casilla_vacia = lista_estados.index(0)
+        movimientos = {'Arriba': -3, 'Abajo': 3, 'Izquierda': -1, 'Derecha': 1}
         nueva_pos = casilla_vacia + movimientos[action]
         
-        # Intercambiar el espacio en blanco con la casilla destino
-        state_list[casilla_vacia], state_list[nueva_pos] = state_list[nueva_pos], state_list[casilla_vacia]
-        return tuple(state_list)
+        lista_estados[casilla_vacia], lista_estados[nueva_pos] = lista_estados[nueva_pos], lista_estados[casilla_vacia]
+        return tuple(lista_estados)
 
-    def action_cost(self, state, action, result_state):
-        """Costo uniforme de 1 para cada movimiento"""
+    def action_cost(self, state, action, resultado_state):
         return 1
 
-    def is_goal(self, state):
-        """Comprueba si el estado actual es el objetivo."""
-        return state == self.goal
+    def is_objetivo(self, state):
+        return state == self.objetivo
 
     def h(self, state):
-        """Heurística de distancia Manhattan"""
-        distance = 0
-        for i in range(9):
-            if state[i] != 0:
-                # Posición actual
-                x1, y1 = divmod(i, 3)
-                # Posición objetivo
-                x2, y2 = divmod(state[i] - 1, 3)
-                distance += abs(x1 - x2) + abs(y1 - y2)
-        return distance
+        distancia = 0
+        for i in range(9): # Iteramos cada casilla del tablero
+            if state[i] != 0: # Ignoramos la casilla vacía
+                x1, y1 = divmod(i, 3) # Posición actual, por ejemplo divmod(4, 3) = (1, 1); x1 es resultado division y y1 es el residuo
+                x2, y2 = divmod(state[i] - 1, 3) # Posición objetivo
+                distancia += abs(x1 - x2) + abs(y1 - y2)
+        return distancia
 
 
-# Crear una instancia del tablero y generar estado inicial
+# Creamos el tablero y determinamos el estado objetivo
 tablero_obj = Tablero()
 estado_inicial = tablero_obj.crear_tablero()
 estado_objetivo = [1, 2, 3, 4, 5, 6, 7, 8, 0]
 
-print(colored("Estado inicial del 8-puzzle:", "blue"))
+print(colored("\nEstado inicial del 8-puzzle:", "blue"))
 tablero_obj.mostrar_tablero(estado_inicial)
 print()
 
-# Instancia del problema de 8-puzzle
-problema_8_puzzle = PuzzleProblem(
-    initial=estado_inicial,
-    goal=estado_objetivo
+# Creamos una instancia del problema
+problema_8_puzzle = Problema_8Puzzle(
+    inicial=estado_inicial,
+    objetivo=estado_objetivo
 )
 
-# Ejecuta A* sobre el problema definido.
+# Ejecutamos A* sobre el problema 
 print(colored("Resolviendo con A*...", "yellow"))
-solution = a_star(problema_8_puzzle)
+solucion = a_star(problema_8_puzzle)
 
 # Función para mostrar la solución paso a paso
-def mostrar_solucion(solution, tablero_obj):
-    if not solution:
+def mostrar_solucion(solucion, tablero_obj):
+    if not solucion:
         print(colored("No se encontró solución.", "red"))
         return
     
-    path = []
-    node = solution
-    while node:
-        path.append((node.state, node.action))
-        node = node.parent
-    path.reverse()
+    camino = []
+    Nodo = solucion
+    while Nodo:
+        camino.append((Nodo.state, Nodo.action))
+        Nodo = Nodo.parent
+    camino.reverse()
     
-    print(colored(f"Solución encontrada en {len(path)-1} pasos:", "green"))
-    print(colored(f"Costo total: {solution.g}", "green"))
+    print(colored(f"Solución encontrada en {len(camino)-1} pasos:", "green"))
+    print(colored(f"Costo: {solucion.g}", "green"))
     print()
     
-    for i, (state, action) in enumerate(path):
+    for i, (state, action) in enumerate(camino):
         if action:
-            print(colored(f"Paso {i}: Movimiento {action}", "cyan"))
+            print(colored(f"Paso {i}: Movimiento {action}", "blue"))
         else:
-            print(colored("Estado inicial:", "cyan"))
+            print(colored("Estado inicial:", "blue"))
         tablero_obj.mostrar_tablero(list(state))
         print()
 
 # Mostrar la solución
-mostrar_solucion(solution, tablero_obj)
+mostrar_solucion(solucion, tablero_obj)
