@@ -1,6 +1,7 @@
 import heapq          # Para usar una cola de prioridad (heap) eficiente.
 import itertools      # Para generar un contador que sirva como tie-breaker en la frontera.
 import random
+import time           # Para medir tiempo de ejecución
 from termcolor import colored
 
 N = 3
@@ -79,6 +80,9 @@ def a_star(problem):
     start = Nodo(state=problem.inicial, g=0, h=problem.h(problem.inicial))
     frontier = []  # frontera será un heap de tuplas (f, contador, nodo)
     counter = itertools.count()  # contador para tie-breaker en caso de empates en f
+    
+    # Contador de nodos explorados
+    nodos_explorados = 0
 
     # Inserta el nodo inicial en la frontera.
     heapq.heappush(frontier, (start.f, next(counter), start))
@@ -87,9 +91,14 @@ def a_star(problem):
     # Bucle principal de A*
     while frontier:
         _, _, current = heapq.heappop(frontier)  # extrae el nodo con menor f
+        
+        # Incrementar contador de nodos explorados
+        nodos_explorados += 1
 
         # Si el nodo actual es meta, lo devolvemos (ruta encontrada).
         if problem.is_objetivo(current.state):
+            # Agregar información de nodos explorados al nodo solución
+            current.nodos_explorados = nodos_explorados
             return current
 
         # Expandir sucesores
@@ -178,7 +187,14 @@ problema_8_puzzle = Problema_8Puzzle(
 
 # Ejecutamos A* sobre el problema 
 print(colored("Resolviendo con A*...", "yellow"))
+
+# Iniciar medición del tiempo
+tiempo_inicio = time.time()
 solucion = a_star(problema_8_puzzle)
+tiempo_fin = time.time()
+
+# Calcular tiempo transcurrido
+tiempo_ejecucion = tiempo_fin - tiempo_inicio
 
 # Función para mostrar la solución paso a paso
 def mostrar_solucion(solucion, tablero_obj):
@@ -235,7 +251,20 @@ def mostrar_path_acciones(solucion):
     
     return acciones
 
+# Mostrar solución
 mostrar_solucion(solucion, tablero_obj)
 
 # Mostrar el path de acciones
 path_acciones = mostrar_path_acciones(solucion)
+
+# Mostrar estadísticas de búsqueda
+print(colored("\n\nEstadísticas de búsqueda:", "yellow"))
+print(colored("=" * 30, "yellow"))
+if solucion:
+    print(colored(f"Nodos explorados: {getattr(solucion, 'nodos_explorados', 'N/A')}", "white"))
+    print(colored(f"Longitud de la solución: {len(path_acciones)} movimientos", "white"))
+    print(colored(f"Costo total: {solucion.g}", "white"))
+    print(colored(f"Tiempo de ejecución: {tiempo_ejecucion:.4f} segundos", "white"))
+else:
+    print(colored("No se encontró solución", "red"))
+    print(colored(f"Tiempo de ejecución: {tiempo_ejecucion:.4f} segundos", "white"))
