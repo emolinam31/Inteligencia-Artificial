@@ -205,4 +205,37 @@ def mostrar_solucion(solucion, tablero_obj):
         tablero_obj.mostrar_tablero(list(state))
         print()
 
+# Función para mostrar solo el path de acciones
+def mostrar_path_acciones(solucion):
+    if not solucion:
+        print(colored("No se encontró solución.", "red"))
+        return []
+    
+    # Reconstruir el camino de acciones
+    acciones = []
+    nodo = solucion
+    while nodo and nodo.parent:  # Mientras tenga padre (no sea el nodo inicial)
+        acciones.append(nodo.action)
+        nodo = nodo.parent
+    
+    # Invertir para tener el orden correcto
+    acciones.reverse()
+    
+    print(colored(f"\nPath de acciones para llegar al objetivo:", "yellow"))
+    print(colored("=" * 50, "yellow"))
+    print()
+
+    if acciones:
+        # Mostrar como lista
+        print(colored(f"Secuencia: {acciones}", "blue"))
+        
+        # Mostrar como string continuo
+        path_string = " → ".join(acciones)
+        print(colored(f"\nCamino: {path_string}", "green"))
+    
+    return acciones
+
 mostrar_solucion(solucion, tablero_obj)
+
+# Mostrar el path de acciones
+path_acciones = mostrar_path_acciones(solucion)
