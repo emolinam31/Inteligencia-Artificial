@@ -1,5 +1,59 @@
 import heapq          # Para usar una cola de prioridad (heap) eficiente.
 import itertools      # Para generar un contador que sirva como tie-breaker en la frontera.
+import random
+from termcolor import colored
+
+N = 3
+
+class Tablero:
+    def __init__(self):
+        self.n = N * N # Tamaño del tablero, acá es 3x3
+        
+    # Función para crear tablero a partir del estado objetivo    
+    def crear_tablero(self):
+        estado = [1, 2, 3, 4, 5, 6, 7, 8, 0] # Partimos del estado objetivo 
+
+        for i in range(1000): # Iteramos 1000 veces para desordenar el tablero (puede ser cualquier número)
+            casilla_vacia = estado.index(0) # Nos da el índice del '0' en la lista
+            movimientos_validos = self.get_movimientos_validos(casilla_vacia) # Obtiene una lista de movimientos válidos para '0'
+            if movimientos_validos: # Si hay movimientos válidos
+                movimiento = random.choice(movimientos_validos) # Escoge uno al azar
+                estado = self.mover_vacia(estado, casilla_vacia, movimiento) # Actualiza el estado del tablero después de cada movimiento
+        return estado
+    
+    # Función para obtener los movimientos válidos que tiene la casilla vacía desde una posición determinada
+    def get_movimientos_validos(self, casilla_vacia):
+        movimientos = []
+        if casilla_vacia >= 3:  # Puede moverse arriba
+            movimientos.append('U')
+        if casilla_vacia <= 5:  # Puede moverse abajo
+            movimientos.append('D')
+        if casilla_vacia % 3 != 0:  # Puede moverse izquierda
+            movimientos.append('L')
+        if casilla_vacia % 3 != 2:  # Puede moverse derecha
+            movimientos.append('R')
+        return movimientos
+    
+    def mover_vacia(self, estado, casilla_vacia, direccion):
+        """Mueve el espacio en blanco en la dirección especificada"""
+        nuevo_estado = estado[:] # Creamos copia del estado actual
+        movimientos = {'U': -3, 'D': 3, 'L': -1, 'R': 1}
+        nueva_pos = casilla_vacia + movimientos[direccion]
+        nuevo_estado[casilla_vacia], nuevo_estado[nueva_pos] = nuevo_estado[nueva_pos], nuevo_estado[casilla_vacia]
+        return nuevo_estado
+    
+    def mostrar_tablero(self, tablero):
+        print("+---+---+---+")
+        for col in range(0, 9, 3):
+            visual_col = "|"
+            for casilla in tablero[col:col + 3]:
+                if casilla == 0:  # Blank tile
+                    visual_col += f" {colored(' ', 'cyan')} |"
+                else:
+                    visual_col += f" {colored(str(casilla), 'yellow')} |"
+            print(visual_col)
+            print("+---+---+---+")         
+            
 
 # Clase que representa un nodo en el espacio de búsqueda.
 class Node:
@@ -61,78 +115,104 @@ def a_star(problem):
     return None
 
 
-# Clase que encapsula el problema de búsqueda.
-class Problem:
-    def __init__(self, initial, goal, adjacency, h_func):
-        self.initial = initial      # Estado inicial del problema.
-        self.goal = goal            # Estado objetivo.
-        self._adj = adjacency       # Grafo: diccionario de vecinos con costos.
-        self._h = h_func            # Función heurística.
+# Clase que encapsula el problema de búsqueda para el 8-puzzle.
+class PuzzleProblem:
+    def __init__(self, initial, goal):
+        self.initial = tuple(initial)  # Estado inicial del problema (como tupla para ser hasheable).
+        self.goal = tuple(goal)        # Estado objetivo.
 
     def actions(self, state):
-        # Devuelve las acciones posibles desde un estado: los nombres de los nodos vecinos.
-        return list(self._adj.get(state, {}).keys())
+        """Devuelve las acciones posibles desde un estado: U, D, L, R"""
+        state_list = list(state)
+        casilla_vacia = state_list.index(0)
+        acciones = []
+        
+        if casilla_vacia >= 3:  # Puede moverse arriba
+            acciones.append('U')
+        if casilla_vacia <= 5:  # Puede moverse abajo
+            acciones.append('D')
+        if casilla_vacia % 3 != 0:  # Puede moverse izquierda
+            acciones.append('L')
+        if casilla_vacia % 3 != 2:  # Puede moverse derecha
+            acciones.append('R')
+        
+        return acciones
 
     def result(self, state, action):
-        # En este modelado, la acción es directamente el nombre del siguiente estado.
-        return action
+        """Devuelve el estado resultante de aplicar una acción"""
+        state_list = list(state)
+        casilla_vacia = state_list.index(0)
+        movimientos = {'U': -3, 'D': 3, 'L': -1, 'R': 1}
+        nueva_pos = casilla_vacia + movimientos[action]
+        
+        # Intercambiar el espacio en blanco con la casilla destino
+        state_list[casilla_vacia], state_list[nueva_pos] = state_list[nueva_pos], state_list[casilla_vacia]
+        return tuple(state_list)
 
     def action_cost(self, state, action, result_state):
-        # Costo de ir de state a result_state por medio de action.
-        return self._adj.get(state, {}).get(action, float('inf'))
+        """Costo uniforme de 1 para cada movimiento"""
+        return 1
 
     def is_goal(self, state):
-        # Comprueba si el estado actual es el objetivo.
+        """Comprueba si el estado actual es el objetivo."""
         return state == self.goal
 
     def h(self, state):
-        # Aplica la heurística sobre un estado.
-        return self._h(state)
+        """Heurística de distancia Manhattan"""
+        distance = 0
+        for i in range(9):
+            if state[i] != 0:
+                # Posición actual
+                x1, y1 = divmod(i, 3)
+                # Posición objetivo
+                x2, y2 = divmod(state[i] - 1, 3)
+                distance += abs(x1 - x2) + abs(y1 - y2)
+        return distance
 
 
-# Definición del grafo de Rumania con costos entre ciudades.
-cost = 1
+# Crear una instancia del tablero y generar estado inicial
+tablero_obj = Tablero()
+estado_inicial = tablero_obj.crear_tablero()
+estado_objetivo = [1, 2, 3, 4, 5, 6, 7, 8, 0]
 
-action = {
-    '1': {'2': cost, '4': cost},
-    '2': {'1': cost, '5': cost, '3': cost},
-    '3': {'2': cost, '6': cost},
-    '4': {'1': cost, '7': cost, '5': cost},
-    '5': {'2': cost, '4': cost, '6': cost, '8': cost},
-    '6': {'3': cost, '5': cost, '9': cost},
-    '7': {'4': cost, '8': cost},
-    '8': {'7': cost, '5': cost, '9': cost},
-    '9': {'8': cost, '6': cost},
-}
+print(colored("Estado inicial del 8-puzzle:", "blue"))
+tablero_obj.mostrar_tablero(estado_inicial)
+print()
 
-# Valores heurísticos (distancia en línea recta estimada a Bucharest).
-h_values = {
-    'Arad': 366, 'Bucharest': 0, 'Craiova': 160, 'Drobeta': 242, 'Eforie': 161,
-    'Fagaras': 176, 'Giurgiu': 77, 'Hirsova': 151, 'Iasi': 226, 'Lugoj': 244,
-    'Mehadia': 241, 'Neamt': 234, 'Oradea': 380, 'Pitesti': 100, 'Rimnicu Vilcea': 193,
-    'Sibiu': 253, 'Timisoara': 329, 'Urziceni': 80, 'Vaslui': 199, 'Zerind': 374
-}
-
-# Instancia del problema con el estado inicial, objetivo, grafo y heurística.
-romania_problem = Problem(
-    initial='Arad',
-    goal='Bucharest',
-    adjacency=action,
-    h_func=lambda s: h_values[s]
+# Instancia del problema de 8-puzzle
+problema_8_puzzle = PuzzleProblem(
+    initial=estado_inicial,
+    goal=estado_objetivo
 )
 
 # Ejecuta A* sobre el problema definido.
-solution = a_star(romania_problem)
+print(colored("Resolviendo con A*...", "yellow"))
+solution = a_star(problema_8_puzzle)
 
-# Reconstruye la ruta desde el nodo meta hasta el inicial siguiendo padres.
-if solution:
+# Función para mostrar la solución paso a paso
+def mostrar_solucion(solution, tablero_obj):
+    if not solution:
+        print(colored("No se encontró solución.", "red"))
+        return
+    
     path = []
     node = solution
     while node:
-        path.append(node.state)
+        path.append((node.state, node.action))
         node = node.parent
-    path.reverse()  # invertir para que vaya de inicial a objetivo
-    print("\nSolution path:", path)
-    print("Total cost g:", solution.g, "\n")
-else:
-    print("No solution found")
+    path.reverse()
+    
+    print(colored(f"Solución encontrada en {len(path)-1} pasos:", "green"))
+    print(colored(f"Costo total: {solution.g}", "green"))
+    print()
+    
+    for i, (state, action) in enumerate(path):
+        if action:
+            print(colored(f"Paso {i}: Movimiento {action}", "cyan"))
+        else:
+            print(colored("Estado inicial:", "cyan"))
+        tablero_obj.mostrar_tablero(list(state))
+        print()
+
+# Mostrar la solución
+mostrar_solucion(solution, tablero_obj)
