@@ -523,7 +523,6 @@ if __name__ == "__main__":
     print("\n🎨 Generando imagen del horario...")
     archivo_imagen = generar_imagen_horario(mejor_horario)
     if archivo_imagen:
-        print(f"✅ Imagen guardada como: {archivo_imagen}")
+        print(f"Imagen guardada como: {archivo_imagen}")
     
     print("\n ¡Horario optimizado completado!")
-
