@@ -19,6 +19,7 @@ Se trató el problema de planificar un horario semanal con clases, estudio, gimn
 Para este trabajo usamos Python, con ciertas librerías que nos permitieron aplicar los algoritmos vistos en clase.
 
 **Librerías:**
+
 import heapq         
 import itertools      
 import random
@@ -27,3 +28,4 @@ from termcolor import colored
 
 import random
 from collections import Counter
+
