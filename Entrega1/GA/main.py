@@ -494,12 +494,12 @@ def generar_imagen_horario(genoma, archivo="horario_generado.png"):
         return archivo
         
     except ImportError:
-        print("⚠ matplotlib no está instalado. Ejecuta: pip install matplotlib")
+        print("matplotlib no está instalado. Ejecuta: pip install matplotlib")
         return None
 
 # Ejecutar algoritmo
 if __name__ == "__main__":
-    print("🧬 Algoritmo Genético para Horarios")
+    print("Algoritmo Genético para Horarios")
     print("=" * 40)
     
     # Crear población inicial
@@ -513,14 +513,14 @@ if __name__ == "__main__":
     mostrar_horario(mejor_horario)
     
     kpis = mostrar_kpis(mejor_horario)
-    print(f"\n📊 KPIs del mejor horario:")
+    print(f"\nKPIs del mejor horario:")
     print(f"Fitness: {kpis['fitness']}")
     print(f"Conteos: {kpis['conteos']}")
     print(f"Días con GYM: {kpis['dias_gym']}")
     print(f"LIBRES por día: {kpis['libres_por_dia']}")
     
     # Generar imagen
-    print("\n🎨 Generando imagen del horario...")
+    print("\nGenerando imagen del horario...")
     archivo_imagen = generar_imagen_horario(mejor_horario)
     if archivo_imagen:
         print(f"Imagen guardada como: {archivo_imagen}")
