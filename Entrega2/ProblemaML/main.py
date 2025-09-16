@@ -108,3 +108,25 @@ sb.boxplot(x="Company", y="Price_euros", data=laptops)
 plt.xticks(rotation=90)
 plt.title("Distribución del Precio según la Compañía")
 plt.show()
+
+# Precio según la RAM
+plt.figure(figsize=(8,6))
+sb.boxplot(x="Ram", y="Price_euros", data=laptops)
+plt.title("Distribución del Precio según la RAM")
+plt.show()
+
+fig_dims = (20, 10)
+fig, ax = plt.subplots(figsize=fig_dims)
+sb.scatterplot(data=laptops, x="Price_euros", y="Ram", ax=ax, s=75)
+
+# Precio según el SSD
+plt.figure(figsize=(8,6))
+sb.boxplot(x="SSD", y="Price_euros", data=laptops)
+plt.title("Distribución del Precio según el SSD (GB)")
+plt.show()
+
+fig_dims = (20, 10)
+fig, ax = plt.subplots(figsize=fig_dims)
+sb.scatterplot(data=laptops, x="Price_euros", y="SSD", ax=ax, s=75)
+
+
