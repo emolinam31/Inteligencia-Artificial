@@ -202,12 +202,17 @@ transformador_numerico = Pipeline(steps=[
 ])
 
 # Pipeline para características (columnas) categóricas
+onehot_kwargs = {"handle_unknown": "ignore"}
+if "min_frequency" in OneHotEncoder.__init__.__code__.co_varnames:
+    onehot_kwargs["min_frequency"] = 20  # agrupa categorías raras si la versión lo permite
+if "sparse_output" in OneHotEncoder.__init__.__code__.co_varnames:
+    onehot_kwargs["sparse_output"] = True  # salida dispersa (aplica en sklearn recientes)
+elif "sparse" in OneHotEncoder.__init__.__code__.co_varnames:
+    onehot_kwargs["sparse"] = True  # compatibilidad con versiones anteriores
+
 transformador_categorico = Pipeline(steps=[
-    ("imputer", SimpleImputer(strategy="most_frequent")),  # Acá rellenamos los valores nulos por la cateogría más repetida
-    ("onehot", OneHotEncoder(handle_unknown="ignore",      # Acá convertimos las categóricas en variables binarias, ignoramos categorías nuevas que aparezcan al predecir
-                             min_frequency=20 if "min_frequency" in OneHotEncoder.__init__.__code__.co_varnames else None, # Cualquier variable con menos de 20 registros entra en una categoría "otros"
-                             sparse_output=True if "sparse_output" in OneHotEncoder.__init__.__code__.co_varnames else False,  # Obtenemos matriz dispersa para ahorrar memoria
-                             sparse=True if "sparse" in OneHotEncoder.__init__.__code__.co_varnames else None))
+    ("imputer", SimpleImputer(strategy="most_frequent")),
+    ("onehot", OneHotEncoder(**onehot_kwargs))
 ])
 
 # Combinamos ambas pipelines, aplicando cada transformador a su lista correspondiente, ignorando otras columnas (como id)
