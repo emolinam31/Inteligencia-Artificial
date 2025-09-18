@@ -221,21 +221,25 @@ preprocesar = ColumnTransformer(
 
 
 # 4 Pipelines de modelos 
+
 # (A) Modelo lineal regularizado
+# Acá aplicamos preprocesamiento primero y luego entrenamos un ridge regresion con los datos ya transformados 
 ridge_pipe = Pipeline(steps=[
     ("prep", preprocesar),
     ("model", Ridge(alpha=1.0, random_state=42))
 ])
 
 # (B) Modelo basado en árboles (menos sensible a escalado)
+# Acá aplicamos preprocesamiento primero y luego entrenamos un random forest regressor con 400 árboles
 rf_pipe = Pipeline(steps=[
     ("prep", preprocesar),
     ("model", RandomForestRegressor(
         n_estimators=400, max_depth=None, n_jobs=-1, random_state=42))
 ])
 
-# (C) Opción con PCA (útil si el one-hot explota dimensiones)
-USE_PCA = False  # cambia a True si lo necesitas
+# (C) Opción con PCA (si el one-hot explota dimensiones)
+# Si queremos usar PCA porque el One-hot generó muchas columnas y queremos reducir dimensionalidad
+USE_PCA = False  # cambiar a True si lo necesitamos
 if USE_PCA:
     ridge_pca_pipe = Pipeline(steps=[
         ("prep", preprocesar),
@@ -245,34 +249,44 @@ if USE_PCA:
 
 
 # 5 Entrenamiento y evaluación rápida en validación 
-def eval_model(name, pipe, Xtr, ytr, Xva, yva):
-    pipe.fit(Xtr, ytr)
-    pred_tr = pipe.predict(Xtr)
-    pred_va = pipe.predict(Xva)
-    def metrics(y_true, y_pred):
+# Función para evaluar los modelos, con el nombre, el pipeline, las características y target de entrenamiento y 
+# las características y target de validación.
+def evaluar_modelo(nombre, pipe, Xtr, ytr, Xva, yva):
+    pipe.fit(Xtr, ytr) # Ajustar todo el pipeline (preprocesamiento más el modelo)
+    pred_tr = pipe.predict(Xtr) # Se generan predicciones sobre el training para evaluar el modelo
+    pred_va = pipe.predict(Xva) # Se generan predicciones sobre la validación para evaluar el modelo
+
+    # Simplemente medimos 3 métricas para determinar el desempeño del modelo
+    def metricas(y_true, y_pred):
         return {
-            "R2": r2_score(y_true, y_pred),
-            "MAE": mean_absolute_error(y_true, y_pred),
-            "RMSE": np.sqrt(mean_squared_error(y_true, y_pred))
+            "R2": r2_score(y_true, y_pred),  # Coeficiente de determinación donde 1 es perfecto y <0 es peor que predecir la media
+            "MAE": mean_absolute_error(y_true, y_pred),  # Error absoluto medio en euros
+            "RMSE": np.sqrt(mean_squared_error(y_true, y_pred))  # Raíz del error cuadrático medio, que penaliza los más a los errores grandes
         }
-    m_tr = metrics(ytr, pred_tr)
-    m_va = metrics(yva, pred_va)
-    print(f"\n[{name}]")
-    print(f"  Train -> R2={m_tr['R2']:.3f} | MAE={m_tr['MAE']:.1f} | RMSE={m_tr['RMSE']:.1f}")
-    print(f"  Valid -> R2={m_va['R2']:.3f} | MAE={m_va['MAE']:.1f} | RMSE={m_va['RMSE']:.1f}")
+    
+    # Acá evaluamos training y validación con la función metricas y retornamos un diccionario con sus 3 respectivos resultados
+    m_tr = metricas(ytr, pred_tr)  
+    m_va = metricas(yva, pred_va)
+
+    # Acá simplemente mostramos los resultados de la evaluación del modelo específico en entrenamiento y validación
+    print(f"\n[{nombre}]")
+    print(f"  Entrenamiento -> R2={m_tr['R2']:.3f} | MAE={m_tr['MAE']:.1f} | RMSE={m_tr['RMSE']:.1f}")
+    print(f"  Validación -> R2={m_va['R2']:.3f} | MAE={m_va['MAE']:.1f} | RMSE={m_va['RMSE']:.1f}")
     return pipe
 
-ridge_pipe = eval_model("Ridge", ridge_pipe, X_train, y_train, X_val, y_val)
-rf_pipe    = eval_model("RandomForest", rf_pipe, X_train, y_train, X_val, y_val)
+# Acá evaluamos ambos modelos, el ridge y el random forest
+ridge_pipe = evaluar_modelo("Ridge", ridge_pipe, X_train, y_train, X_val, y_val)
+rf_pipe    = evaluar_modelo("RandomForest", rf_pipe, X_train, y_train, X_val, y_val)
 
 if USE_PCA:
-    ridge_pca_pipe = eval_model("Ridge+PCA", ridge_pca_pipe, X_train, y_train, X_val, y_val)
+    ridge_pca_pipe = evaluar_modelo("Ridge+PCA", ridge_pca_pipe, X_train, y_train, X_val, y_val)
 
 
 # 6 Evaluación final en test (elige el mejor según Valid) 
-# Ejemplo: supón que RandomForest fue mejor en validación
-best_pipe = rf_pipe   # o ridge_pipe / ridge_pca_pipe
-pred_test = best_pipe.predict(X_test)
+# Ejemplo: suponemos que RandomForest fue mejor en validación
+best_pipe = rf_pipe   # Acá simplemente suponemos que el mejor modelo fue el random forest en validación
+pred_test = best_pipe.predict(X_test)  # Acá calculamos las predicciones del modelo sobre los datos del test
 
+# Acá simplemente imprimimos las méticas finales para el modelo "ganador" con los datos del test
 print("\n[TEST FINAL]")
 print(f"  R2={r2_score(y_test, pred_test):.3f} | MAE={mean_absolute_error(y_test, pred_test):.1f} | RMSE={np.sqrt(mean_squared_error(y_test, pred_test)):.1f}")
