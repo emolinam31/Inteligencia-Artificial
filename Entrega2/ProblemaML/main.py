@@ -111,6 +111,7 @@ def mapa_correlacion (datos):
     correlaciones = datos.corr(numeric_only=True)
     fig, ax = plt.subplots(figsize=(16,16))
     sb.heatmap(correlaciones, vmax=1.0, center=0, fmt='.2f', square=True, linewidths=0.5, annot=True, cbar_kws={"shrink":.70})
+    plt.title("Mapa de correlaciónes variables Numericas")
     plt.show()
 
 mapa_correlacion(laptops)
@@ -257,9 +258,9 @@ if USE_PCA:
 # Función para evaluar los modelos, con el nombre, el pipeline, las características y target de entrenamiento y 
 # las características y target de validación.
 def evaluar_modelo(nombre, pipe, Xtr, ytr, Xva, yva):
-    pipe.fit(Xtr, ytr) # Ajustar todo el pipeline (preprocesamiento más el modelo)
-    pred_tr = pipe.predict(Xtr) # Se generan predicciones sobre el training para evaluar el modelo
-    pred_va = pipe.predict(Xva) # Se generan predicciones sobre la validación para evaluar el modelo
+    pipe.fit(Xtr, ytr)  # Ajustar todo el pipeline (preprocesamiento más el modelo)
+    pred_tr = pipe.predict(Xtr)  # Se generan predicciones sobre el training para evaluar el modelo
+    pred_va = pipe.predict(Xva)  # Se generan predicciones sobre la validación para evaluar el modelo
 
     # Simplemente medimos 3 métricas para determinar el desempeño del modelo
     def metricas(y_true, y_pred):
@@ -268,16 +269,22 @@ def evaluar_modelo(nombre, pipe, Xtr, ytr, Xva, yva):
             "MAE": mean_absolute_error(y_true, y_pred),  # Error absoluto medio en euros
             "RMSE": np.sqrt(mean_squared_error(y_true, y_pred))  # Raíz del error cuadrático medio, que penaliza los más a los errores grandes
         }
-    
+
     # Acá evaluamos training y validación con la función metricas y retornamos un diccionario con sus 3 respectivos resultados
-    m_tr = metricas(ytr, pred_tr)  
+    m_tr = metricas(ytr, pred_tr)
     m_va = metricas(yva, pred_va)
 
     # Acá simplemente mostramos los resultados de la evaluación del modelo específico en entrenamiento y validación
     print(f"\n[{nombre}]")
     print(f"  Entrenamiento -> R2={m_tr['R2']:.3f} | MAE={m_tr['MAE']:.1f} | RMSE={m_tr['RMSE']:.1f}")
     print(f"  Validación -> R2={m_va['R2']:.3f} | MAE={m_va['MAE']:.1f} | RMSE={m_va['RMSE']:.1f}")
-    return pipe
+
+    return {
+        "nombre": nombre,
+        "pipeline": pipe,
+        "train": m_tr,
+        "valid": m_va
+    }
 
 # Acá evaluamos ambos modelos, el ridge y el random forest
 ridge_pipe = evaluar_modelo("Ridge", ridge_pipe, X_train, y_train, X_val, y_val)
@@ -287,11 +294,58 @@ if USE_PCA:
     ridge_pca_pipe = evaluar_modelo("Ridge+PCA", ridge_pca_pipe, X_train, y_train, X_val, y_val)
 
 
-# 6 Evaluación final en test (elige el mejor según Valid) 
-# Ejemplo: suponemos que RandomForest fue mejor en validación
-best_pipe = rf_pipe   # Acá simplemente suponemos que el mejor modelo fue el random forest en validación
-pred_test = best_pipe.predict(X_test)  # Acá calculamos las predicciones del modelo sobre los datos del test
+# 6 Evaluación final en test para todos los modelos y tabla comparativa
 
-# Acá simplemente imprimimos las méticas finales para el modelo "ganador" con los datos del test
-print("\n[TEST FINAL]")
-print(f"  R2={r2_score(y_test, pred_test):.3f} | MAE={mean_absolute_error(y_test, pred_test):.1f} | RMSE={np.sqrt(mean_squared_error(y_test, pred_test)):.1f}")
+def crear_tabla_comparativa(modelos, X_test, y_test):
+    """
+    Crea una tabla comparativa de todos los modelos evaluados en el conjunto de test.
+    """
+    resultados = []
+    
+    for modelo_info in modelos:
+        nombre = modelo_info["nombre"]
+        pipeline = modelo_info["pipeline"]
+        
+        # Predicciones en test
+        pred_test = pipeline.predict(X_test)
+        
+        # Calcular métricas en test
+        r2 = r2_score(y_test, pred_test)
+        mae = mean_absolute_error(y_test, pred_test)
+        rmse = np.sqrt(mean_squared_error(y_test, pred_test))
+        
+        # Agregar a la lista de resultados
+        resultados.append({
+            'Modelo': nombre,
+            'R² Score': f"{r2:.4f}",
+            'MAE (€)': f"{mae:.2f}",
+            'RMSE (€)': f"{rmse:.2f}"
+        })
+    
+    # Crear DataFrame y mostrar tabla
+    df_resultados = pd.DataFrame(resultados)
+    
+    print("\n" + "="*60)
+    print("           TABLA COMPARATIVA DE MODELOS EN TEST")
+    print("="*60)
+    print(df_resultados.to_string(index=False))
+    print("="*60)
+    
+    # Identificar el mejor modelo
+    df_resultados['R² Score (num)'] = df_resultados['R² Score'].astype(float)
+    mejor_modelo_idx = df_resultados['R² Score (num)'].idxmax()
+    mejor_modelo = df_resultados.iloc[mejor_modelo_idx]['Modelo']
+    mejor_r2 = df_resultados.iloc[mejor_modelo_idx]['R² Score']
+    
+    print(f"\n🏆 MEJOR MODELO: {mejor_modelo} (R² = {mejor_r2})")
+    print("="*60)
+    
+    return df_resultados
+
+# Lista de todos los modelos entrenados
+modelos_entrenados = [ridge_pipe, rf_pipe]
+if USE_PCA:
+    modelos_entrenados.append(ridge_pca_pipe)
+
+# Crear y mostrar la tabla comparativa
+tabla_comparativa = crear_tabla_comparativa(modelos_entrenados, X_test, y_test)
