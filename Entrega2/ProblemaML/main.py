@@ -261,6 +261,7 @@ rf_pipe = Pipeline(steps=[
 ])
 
 # (C) Modelo KNN
+# Acá aplicamos preprocesamiento primero y ya luego entrenamos el regresor de KNN
 knn_pipe = Pipeline(steps=[
     ("prep", clone(preprocesador_base)),
     ("model", KNeighborsRegressor(
@@ -285,11 +286,11 @@ USE_DNN = True  # activa la DNN solo cuando quieras entrenarla (costosa)
 
 if USE_DNN:
     # DNN en pipeline (Keras + scikit-learn)
-    # --- 0) (Opcional) Asegurar salida densa tras el preprocess ---
+    # Aseguramos salida densa tras el preprocesamiento
     # Si OneHotEncoder devolviera matriz dispersa, esto la vuelve densa antes de Keras.
     to_dense = FunctionTransformer(lambda X: X.toarray() if hasattr(X, "toarray") else X)
 
-    # --- 1) Definición del modelo Keras ---
+    # Definición del modelo Keras
     def build_dnn(
         input_dim: int,
         hidden_units=(256, 128, 64),   # 3 capas ocultas
@@ -321,7 +322,7 @@ if USE_DNN:
         )
         return model
 
-    # --- 2) Armar el pipeline: preprocess -> (to_dense) -> KerasRegressor ---
+    # Armar el pipeline: preprocess -> (to_dense) -> KerasRegressor 
     dnn_pipe = Pipeline(steps=[
         ("prep", clone(preprocesador_base)),
         ("to_dense", to_dense),  # convierte sparse a densa si hace falta
@@ -349,7 +350,7 @@ if USE_DNN:
         ))
     ])
 
-    # --- 3) Ajustar input_dim automáticamente sin duplicar entrenamiento ---
+    # Ajustar input_dim automáticamente sin duplicar entrenamiento 
     preprocessor_for_shape = clone(preprocesador_base)
     prepped_train = preprocessor_for_shape.fit_transform(X_train, y_train)
     input_dim = prepped_train.shape[1]
