@@ -480,3 +480,37 @@ if USE_PCA:
 
 # Crear y mostrar la tabla comparativa
 tabla_comparativa = crear_tabla_comparativa(modelos_entrenados, X_test, y_test)
+
+# 7 Predicción con muestra artificial
+
+def generar_muestra_artificial():
+    """Construye una muestra inventada con las mismas columnas que X."""
+    sample = {
+        "Inches": 15.6,
+        "Weight": 1.8,
+        "Ram": 16,
+        "Memory": 1024.0,
+        "X_res": 1920.0,
+        "Y_res": 1080.0,
+        "PPI": np.sqrt(1920.0 ** 2 + 1080.0 ** 2) / 15.6,
+        "ScreenResolution": float(1920 * 1080),
+        "HDD": 0.0,
+        "SSD": 1024.0,
+        "Hybrid": 0.0,
+        "Flash_Storage": 0.0,
+        "Touchscreen": 0,
+        "Company": "Dell",
+        "TypeName": "Ultrabook",
+        "OpSys": "Windows 10",
+    }
+    return pd.DataFrame([sample], columns=X.columns)
+
+best_model_info = max(modelos_entrenados, key=lambda m: m["valid"]["R2"])
+mejor_pipeline = best_model_info["pipeline"]
+muestra_artificial = generar_muestra_artificial()
+
+prediccion_artificial = mejor_pipeline.predict(muestra_artificial)[0]
+
+print("\nMUESTRA ARTIFICIAL UTILIZADA:")
+print(muestra_artificial)
+print(f"\nPredicción de precio para la muestra artificial con {best_model_info['nombre']}: €{prediccion_artificial:,.2f}")
