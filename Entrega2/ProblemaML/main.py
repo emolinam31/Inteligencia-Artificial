@@ -482,7 +482,6 @@ if USE_PCA:
 tabla_comparativa = crear_tabla_comparativa(modelos_entrenados, X_test, y_test)
 
 # 7 Predicción con muestra artificial
-
 def generar_muestra_artificial():
     """Construye una muestra inventada con las mismas columnas que X."""
     sample = {
@@ -490,10 +489,10 @@ def generar_muestra_artificial():
         "Weight": 1.8,
         "Ram": 16,
         "Memory": 1024.0,
-        "X_res": 1920.0,
-        "Y_res": 1080.0,
-        "PPI": np.sqrt(1920.0 ** 2 + 1080.0 ** 2) / 15.6,
-        "ScreenResolution": float(1920 * 1080),
+        "X_res": 3840.0,
+        "Y_res": 2160.0,
+        "PPI": np.sqrt(3840.0 ** 2 + 2160.0 ** 2) / 15.6,
+        "ScreenResolution": float(3840 * 2160),
         "HDD": 0.0,
         "SSD": 1024.0,
         "Hybrid": 0.0,
