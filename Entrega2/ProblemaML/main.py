@@ -282,7 +282,7 @@ if USE_PCA:
     ])
 
 
-USE_DNN = True  # activa la DNN solo cuando quieras entrenarla (costosa)
+USE_DNN = True  # activa la DNN 
 
 if USE_DNN:
     # DNN en pipeline (Keras + scikit-learn)
